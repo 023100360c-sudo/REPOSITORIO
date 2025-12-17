@@ -1,1 +1,87 @@
+CREATE TABLE Cliente (
+    id_cliente INT PRIMARY KEY IDENTITY,
+    nombres VARCHAR(100) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL,
+    dni CHAR(8) UNIQUE,
+    telefono VARCHAR(20),
+    correo VARCHAR(100)
+);
+
+CREATE TABLE Empleado (
+    id_empleado INT PRIMARY KEY IDENTITY,
+    nombres VARCHAR(100),
+    apellidos VARCHAR(100),
+    cargo VARCHAR(50),
+    salario DECIMAL(10,2)
+);
+
+CREATE TABLE Marca (
+    id_marca INT PRIMARY KEY IDENTITY,
+    nombre_marca VARCHAR(100),
+    pais_origen VARCHAR(50)
+);
+
+CREATE TABLE Categoria (
+    id_categoria INT PRIMARY KEY IDENTITY,
+    nombre_categoria VARCHAR(100),
+    descripcion VARCHAR(200)
+);
+
+CREATE TABLE Bicicleta (
+    id_bicicleta INT PRIMARY KEY IDENTITY,
+    modelo VARCHAR(100),
+    precio DECIMAL(10,2),
+    stock INT,
+    id_marca INT,
+    id_categoria INT,
+    FOREIGN KEY (id_marca) REFERENCES Marca(id_marca),
+    FOREIGN KEY (id_categoria) REFERENCES Categoria(id_categoria)
+);
+
+CREATE TABLE Proveedor (
+    id_proveedor INT PRIMARY KEY IDENTITY,
+    razon_social VARCHAR(150),
+    telefono VARCHAR(20),
+    correo VARCHAR(100)
+);
+
+CREATE TABLE Compra (
+    id_compra INT PRIMARY KEY IDENTITY,
+    fecha_compra DATE,
+    total DECIMAL(10,2),
+    id_proveedor INT,
+    FOREIGN KEY (id_proveedor) REFERENCES Proveedor(id_proveedor)
+);
+
+CREATE TABLE DetalleCompra (
+    id_detalle_compra INT PRIMARY KEY IDENTITY,
+    cantidad INT,
+    precio_compra DECIMAL(10,2),
+    subtotal DECIMAL(10,2),
+    id_compra INT,
+    id_bicicleta INT,
+    FOREIGN KEY (id_compra) REFERENCES Compra(id_compra),
+    FOREIGN KEY (id_bicicleta) REFERENCES Bicicleta(id_bicicleta)
+);
+
+CREATE TABLE Venta (
+    id_venta INT PRIMARY KEY IDENTITY,
+    fecha_venta DATE,
+    total DECIMAL(10,2),
+    id_cliente INT,
+    id_empleado INT,
+    FOREIGN KEY (id_cliente) REFERENCES Cliente(id_cliente),
+    FOREIGN KEY (id_empleado) REFERENCES Empleado(id_empleado)
+);
+
+CREATE TABLE DetalleVenta (
+    id_detalle_venta INT PRIMARY KEY IDENTITY,
+    cantidad INT,
+    precio_unitario DECIMAL(10,2),
+    subtotal DECIMAL(10,2),
+    id_venta INT,
+    id_bicicleta INT,
+    FOREIGN KEY (id_venta) REFERENCES Venta(id_venta),
+    FOREIGN KEY (id_bicicleta) REFERENCES Bicicleta(id_bicicleta)
+);
 
