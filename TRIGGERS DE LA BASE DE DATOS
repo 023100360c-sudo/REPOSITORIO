@@ -1,1 +1,204 @@
+/*==============================================================
+  CREACIÓN DE LA BASE DE DATOS
+==============================================================*/
+CREATE DATABASE TiendaBicicletas;
+GO
+
+USE TiendaBicicletas;
+GO
+
+/*==============================================================
+  TABLAS MAESTRAS
+==============================================================*/
+CREATE TABLE Cliente (
+    id_cliente INT IDENTITY PRIMARY KEY,
+    nombres VARCHAR(100) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL,
+    dni CHAR(8) UNIQUE,
+    telefono VARCHAR(20),
+    correo VARCHAR(100)
+);
+
+CREATE TABLE Empleado (
+    id_empleado INT IDENTITY PRIMARY KEY,
+    nombres VARCHAR(100) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL,
+    cargo VARCHAR(50),
+    salario DECIMAL(10,2)
+);
+
+CREATE TABLE Marca (
+    id_marca INT IDENTITY PRIMARY KEY,
+    nombre_marca VARCHAR(100) NOT NULL,
+    pais_origen VARCHAR(50)
+);
+
+CREATE TABLE Categoria (
+    id_categoria INT IDENTITY PRIMARY KEY,
+    nombre_categoria VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(200)
+);
+
+CREATE TABLE Bicicleta (
+    id_bicicleta INT IDENTITY PRIMARY KEY,
+    modelo VARCHAR(100) NOT NULL,
+    precio DECIMAL(10,2) NOT NULL,
+    stock INT NOT NULL CHECK (stock >= 0),
+    id_marca INT NOT NULL,
+    id_categoria INT NOT NULL,
+    FOREIGN KEY (id_marca) REFERENCES Marca(id_marca),
+    FOREIGN KEY (id_categoria) REFERENCES Categoria(id_categoria)
+);
+
+CREATE TABLE Proveedor (
+    id_proveedor INT IDENTITY PRIMARY KEY,
+    razon_social VARCHAR(150) NOT NULL,
+    telefono VARCHAR(20),
+    correo VARCHAR(100)
+);
+
+/*==============================================================
+  TABLAS DE TRANSACCIONES
+==============================================================*/
+CREATE TABLE Venta (
+    id_venta INT IDENTITY PRIMARY KEY,
+    fecha_venta DATE NOT NULL DEFAULT GETDATE(),
+    total DECIMAL(10,2) DEFAULT 0,
+    id_cliente INT NOT NULL,
+    id_empleado INT NOT NULL,
+    FOREIGN KEY (id_cliente) REFERENCES Cliente(id_cliente),
+    FOREIGN KEY (id_empleado) REFERENCES Empleado(id_empleado)
+);
+
+CREATE TABLE DetalleVenta (
+    id_detalle_venta INT IDENTITY PRIMARY KEY,
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_unitario DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2),
+    id_venta INT NOT NULL,
+    id_bicicleta INT NOT NULL,
+    FOREIGN KEY (id_venta) REFERENCES Venta(id_venta),
+    FOREIGN KEY (id_bicicleta) REFERENCES Bicicleta(id_bicicleta)
+);
+
+CREATE TABLE Compra (
+    id_compra INT IDENTITY PRIMARY KEY,
+    fecha_compra DATE NOT NULL DEFAULT GETDATE(),
+    total DECIMAL(10,2) DEFAULT 0,
+    id_proveedor INT NOT NULL,
+    FOREIGN KEY (id_proveedor) REFERENCES Proveedor(id_proveedor)
+);
+
+CREATE TABLE DetalleCompra (
+    id_detalle_compra INT IDENTITY PRIMARY KEY,
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_compra DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2),
+    id_compra INT NOT NULL,
+    id_bicicleta INT NOT NULL,
+    FOREIGN KEY (id_compra) REFERENCES Compra(id_compra),
+    FOREIGN KEY (id_bicicleta) REFERENCES Bicicleta(id_bicicleta)
+);
+
+/*==============================================================
+  TRIGGER 1: VALIDAR STOCK ANTES DE VENDER
+==============================================================*/
+CREATE TRIGGER trg_ValidarStockVenta
+ON DetalleVenta
+INSTEAD OF INSERT
+AS
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM inserted I
+        JOIN Bicicleta B ON I.id_bicicleta = B.id_bicicleta
+        WHERE I.cantidad > B.stock
+    )
+    BEGIN
+        RAISERROR ('Stock insuficiente para realizar la venta.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    INSERT INTO DetalleVenta (cantidad, precio_unitario, subtotal, id_venta, id_bicicleta)
+    SELECT cantidad, precio_unitario, cantidad * precio_unitario, id_venta, id_bicicleta
+    FROM inserted;
+END;
+GO
+
+/*==============================================================
+  TRIGGER 2: DESCONTAR STOCK AL REGISTRAR VENTA
+==============================================================*/
+CREATE TRIGGER trg_DescontarStockVenta
+ON DetalleVenta
+AFTER INSERT
+AS
+BEGIN
+    UPDATE B
+    SET B.stock = B.stock - I.cantidad
+    FROM Bicicleta B
+    JOIN inserted I ON B.id_bicicleta = I.id_bicicleta;
+END;
+GO
+
+/*==============================================================
+  TRIGGER 3: AUMENTAR STOCK AL REGISTRAR COMPRA
+==============================================================*/
+CREATE TRIGGER trg_AumentarStockCompra
+ON DetalleCompra
+AFTER INSERT
+AS
+BEGIN
+    UPDATE B
+    SET B.stock = B.stock + I.cantidad
+    FROM Bicicleta B
+    JOIN inserted I ON B.id_bicicleta = I.id_bicicleta;
+END;
+GO
+
+/*==============================================================
+  TRIGGER 4: CALCULAR TOTAL DE VENTA AUTOMÁTICAMENTE
+==============================================================*/
+CREATE TRIGGER trg_CalcularTotalVenta
+ON DetalleVenta
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    UPDATE V
+    SET total = (
+        SELECT ISNULL(SUM(subtotal),0)
+        FROM DetalleVenta
+        WHERE id_venta = V.id_venta
+    )
+    FROM Venta V
+    WHERE V.id_venta IN (
+        SELECT id_venta FROM inserted
+        UNION
+        SELECT id_venta FROM deleted
+    );
+END;
+GO
+
+/*==============================================================
+  TRIGGER 5: CALCULAR TOTAL DE COMPRA AUTOMÁTICAMENTE
+==============================================================*/
+CREATE TRIGGER trg_CalcularTotalCompra
+ON DetalleCompra
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    UPDATE C
+    SET total = (
+        SELECT ISNULL(SUM(subtotal),0)
+        FROM DetalleCompra
+        WHERE id_compra = C.id_compra
+    )
+    FROM Compra C
+    WHERE C.id_compra IN (
+        SELECT id_compra FROM inserted
+        UNION
+        SELECT id_compra FROM deleted
+    );
+END;
+GO
 
